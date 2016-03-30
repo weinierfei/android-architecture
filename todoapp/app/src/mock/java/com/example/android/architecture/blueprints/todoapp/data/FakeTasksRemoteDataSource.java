@@ -20,11 +20,13 @@ import android.support.annotation.NonNull;
 import android.support.annotation.VisibleForTesting;
 
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksDataSource;
-import com.google.common.collect.Lists;
 
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+
+import rx.Observable;
 
 /**
  * Implementation of a remote data source with static access to the data for easy testing.
@@ -36,7 +38,8 @@ public class FakeTasksRemoteDataSource implements TasksDataSource {
     private static final Map<String, Task> TASKS_SERVICE_DATA = new LinkedHashMap<>();
 
     // Prevent direct instantiation.
-    private FakeTasksRemoteDataSource() {}
+    private FakeTasksRemoteDataSource() {
+    }
 
     public static FakeTasksRemoteDataSource getInstance() {
         if (INSTANCE == null) {
@@ -46,14 +49,13 @@ public class FakeTasksRemoteDataSource implements TasksDataSource {
     }
 
     @Override
-    public void getTasks(@NonNull LoadTasksCallback callback) {
-        callback.onTasksLoaded(Lists.newArrayList(TASKS_SERVICE_DATA.values()));
+    public Observable<List<Task>> getTasks() {
+        return Observable.from(TASKS_SERVICE_DATA.values()).toList();
     }
 
     @Override
-    public void getTask(@NonNull String taskId, @NonNull GetTaskCallback callback) {
-        Task task = TASKS_SERVICE_DATA.get(taskId);
-        callback.onTaskLoaded(task);
+    public Observable<Task> getTask(@NonNull String taskId) {
+        return Observable.just(TASKS_SERVICE_DATA.get(taskId));
     }
 
     @Override

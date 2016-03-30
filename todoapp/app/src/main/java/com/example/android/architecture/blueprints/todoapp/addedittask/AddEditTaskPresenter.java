@@ -22,14 +22,18 @@ import android.support.annotation.Nullable;
 import com.example.android.architecture.blueprints.todoapp.data.Task;
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksDataSource;
 
+import rx.Subscription;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Action1;
+import rx.schedulers.Schedulers;
+
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
  * Listens to user actions from the UI ({@link AddEditTaskFragment}), retrieves the data and updates
  * the UI as required.
  */
-public class AddEditTaskPresenter implements AddEditTaskContract.Presenter,
-        TasksDataSource.GetTaskCallback {
+public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
 
     @NonNull
     private final TasksDataSource mTasksRepository;
@@ -39,16 +43,17 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter,
 
     @Nullable
     private String mTaskId;
+    private Subscription mTaskSubscription;
 
     /**
      * Creates a presenter for the add/edit view.
      *
-     * @param taskId ID of the task to edit or null for a new task
+     * @param taskId          ID of the task to edit or null for a new task
      * @param tasksRepository a repository of data for tasks
-     * @param addTaskView the add/edit view
+     * @param addTaskView     the add/edit view
      */
     public AddEditTaskPresenter(@Nullable String taskId, @NonNull TasksDataSource tasksRepository,
-            @NonNull AddEditTaskContract.View addTaskView) {
+                                @NonNull AddEditTaskContract.View addTaskView) {
         mTaskId = taskId;
         mTasksRepository = checkNotNull(tasksRepository);
         mAddTaskView = checkNotNull(addTaskView);
@@ -57,10 +62,15 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter,
     }
 
     @Override
-    public void start() {
+    public void subscribe() {
         if (mTaskId != null) {
             populateTask();
         }
+    }
+
+    @Override
+    public void unsubscribe() {
+        clearTaskSubscription();
     }
 
     @Override
@@ -88,23 +98,29 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter,
         if (mTaskId == null) {
             throw new RuntimeException("populateTask() was called but task is new.");
         }
-        mTasksRepository.getTask(mTaskId, this);
+        clearTaskSubscription();
+        mTaskSubscription = mTasksRepository.getTask(mTaskId)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Action1<Task>() {
+                    @Override
+                    public void call(Task task) {
+                        // The view may not be able to handle UI updates anymore
+                        if (mAddTaskView.isActive()) {
+                            if (task != null) {
+                                mAddTaskView.setTitle(task.getTitle());
+                                mAddTaskView.setDescription(task.getDescription());
+                            } else {
+                                mAddTaskView.showEmptyTaskError();
+                            }
+                        }
+                    }
+                });
     }
 
-    @Override
-    public void onTaskLoaded(Task task) {
-        // The view may not be able to handle UI updates anymore
-        if (mAddTaskView.isActive()) {
-            mAddTaskView.setTitle(task.getTitle());
-            mAddTaskView.setDescription(task.getDescription());
-        }
-    }
-
-    @Override
-    public void onDataNotAvailable() {
-        // The view may not be able to handle UI updates anymore
-        if (mAddTaskView.isActive()) {
-            mAddTaskView.showEmptyTaskError();
+    private void clearTaskSubscription() {
+        if (mTaskSubscription != null && !mTaskSubscription.isUnsubscribed()) {
+            mTaskSubscription.unsubscribe();
         }
     }
 }

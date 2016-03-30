@@ -20,8 +20,12 @@ import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 
 import com.example.android.architecture.blueprints.todoapp.data.Task;
-import com.example.android.architecture.blueprints.todoapp.data.source.TasksDataSource;
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksRepository;
+
+import rx.Subscription;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Action1;
+import rx.schedulers.Schedulers;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -37,6 +41,7 @@ public class TaskDetailPresenter implements TaskDetailContract.Presenter {
 
     @Nullable
     private String mTaskId;
+    private Subscription mTaskSubscription;
 
     public TaskDetailPresenter(@Nullable String taskId,
                                @NonNull TasksRepository tasksRepository,
@@ -49,8 +54,13 @@ public class TaskDetailPresenter implements TaskDetailContract.Presenter {
     }
 
     @Override
-    public void start() {
+    public void subscribe() {
         openTask();
+    }
+
+    @Override
+    public void unsubscribe() {
+        clearTaskSubscription();
     }
 
     private void openTask() {
@@ -60,30 +70,32 @@ public class TaskDetailPresenter implements TaskDetailContract.Presenter {
         }
 
         mTaskDetailView.setLoadingIndicator(true);
-        mTasksRepository.getTask(mTaskId, new TasksDataSource.GetTaskCallback() {
-            @Override
-            public void onTaskLoaded(Task task) {
-                // The view may not be able to handle UI updates anymore
-                if (!mTaskDetailView.isActive()) {
-                    return;
-                }
-                mTaskDetailView.setLoadingIndicator(false);
-                if (null == task) {
-                    mTaskDetailView.showMissingTask();
-                } else {
-                    showTask(task);
-                }
-            }
+        clearTaskSubscription();
+        mTaskSubscription = mTasksRepository.getTask(mTaskId)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Action1<Task>() {
+                    @Override
+                    public void call(Task task) {
+                        // The view may not be able to handle UI updates anymore
+                        if (!mTaskDetailView.isActive()) {
+                            return;
+                        }
+                        mTaskDetailView.setLoadingIndicator(false);
+                        if (null == task) {
+                            mTaskDetailView.showMissingTask();
+                        } else {
+                            showTask(task);
+                        }
+                    }
+                });
+        ;
+    }
 
-            @Override
-            public void onDataNotAvailable() {
-                // The view may not be able to handle UI updates anymore
-                if (!mTaskDetailView.isActive()) {
-                    return;
-                }
-                mTaskDetailView.showMissingTask();
-            }
-        });
+    private void clearTaskSubscription() {
+        if (mTaskSubscription != null && !mTaskSubscription.isUnsubscribed()) {
+            mTaskSubscription.unsubscribe();
+        }
     }
 
     @Override
@@ -97,6 +109,10 @@ public class TaskDetailPresenter implements TaskDetailContract.Presenter {
 
     @Override
     public void deleteTask() {
+        if (null == mTaskId || mTaskId.isEmpty()) {
+            return;
+        }
+
         mTasksRepository.deleteTask(mTaskId);
         mTaskDetailView.showTaskDeleted();
     }

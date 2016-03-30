@@ -19,11 +19,17 @@ package com.example.android.architecture.blueprints.todoapp.statistics;
 import android.support.annotation.NonNull;
 
 import com.example.android.architecture.blueprints.todoapp.data.Task;
-import com.example.android.architecture.blueprints.todoapp.data.source.TasksDataSource;
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksRepository;
 import com.example.android.architecture.blueprints.todoapp.util.EspressoIdlingResource;
 
 import java.util.List;
+
+import rx.Observable;
+import rx.Observer;
+import rx.Subscription;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Func1;
+import rx.schedulers.Schedulers;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -36,6 +42,9 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
     private final TasksRepository mTasksRepository;
 
     private final StatisticsContract.View mStatisticsView;
+    private int mCompletedTasks;
+    private int mActiveTasks;
+    private Subscription mStatisticsSubscription;
 
     public StatisticsPresenter(@NonNull TasksRepository tasksRepository,
                                @NonNull StatisticsContract.View statisticsView) {
@@ -46,8 +55,13 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
     }
 
     @Override
-    public void start() {
+    public void subscribe() {
         loadStatistics();
+    }
+
+    @Override
+    public void unsubscribe() {
+        clearStatisticsSubscription();
     }
 
     private void loadStatistics() {
@@ -57,44 +71,50 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
         // that the app is busy until the response is handled.
         EspressoIdlingResource.increment(); // App is busy until further notice
 
-        mTasksRepository.getTasks(new TasksDataSource.LoadTasksCallback() {
-            @Override
-            public void onTasksLoaded(List<Task> tasks) {
-                int activeTasks = 0;
-                int completedTasks = 0;
-
-                // This callback may be called twice, once for the cache and once for loading
-                // the data from the server API, so we check before decrementing, otherwise
-                // it throws "Counter has been corrupted!" exception.
-                if (!EspressoIdlingResource.getIdlingResource().isIdleNow()) {
-                    EspressoIdlingResource.decrement(); // Set app as idle.
-                }
-
-                // We calculate number of active and completed tasks
-                for (Task task : tasks) {
-                    if (task.isCompleted()) {
-                        completedTasks += 1;
-                    } else {
-                        activeTasks += 1;
+        clearStatisticsSubscription();
+        mStatisticsSubscription = mTasksRepository.getTasks()
+                .flatMap(new Func1<List<Task>, Observable<Task>>() {
+                    @Override
+                    public Observable<Task> call(List<Task> tasks) {
+                        mCompletedTasks = 0;
+                        mActiveTasks = 0;
+                        return Observable.from(tasks);
                     }
-                }
-                // The view may not be able to handle UI updates anymore
-                if (!mStatisticsView.isActive()) {
-                    return;
-                }
-                mStatisticsView.setProgressIndicator(false);
+                })
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Observer<Task>() {
+                    @Override
+                    public void onCompleted() {
+                        if (!mStatisticsView.isActive()) {
+                            return;
+                        }
 
-                mStatisticsView.showStatistics(activeTasks, completedTasks);
-            }
+                        mStatisticsView.setProgressIndicator(false);
 
-            @Override
-            public void onDataNotAvailable() {
-                // The view may not be able to handle UI updates anymore
-                if (!mStatisticsView.isActive()) {
-                    return;
-                }
-                mStatisticsView.showLoadingStatisticsError();
-            }
-        });
+                        mStatisticsView.showStatistics(mActiveTasks, mCompletedTasks);
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+
+                    }
+
+                    @Override
+                    public void onNext(Task task) {
+                        if (task.isCompleted()) {
+                            mCompletedTasks += 1;
+                        } else {
+                            mActiveTasks += 1;
+                        }
+                    }
+                });
+
+    }
+
+    private void clearStatisticsSubscription() {
+        if(mStatisticsSubscription != null && !mStatisticsSubscription.isUnsubscribed()) {
+            mStatisticsSubscription.unsubscribe();
+        }
     }
 }
