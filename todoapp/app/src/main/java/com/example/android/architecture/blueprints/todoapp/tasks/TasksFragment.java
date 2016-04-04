@@ -43,14 +43,21 @@ import com.example.android.architecture.blueprints.todoapp.R;
 import com.example.android.architecture.blueprints.todoapp.addedittask.AddEditTaskActivity;
 import com.example.android.architecture.blueprints.todoapp.data.Task;
 import com.example.android.architecture.blueprints.todoapp.taskdetail.TaskDetailActivity;
+import com.jakewharton.rxbinding.support.v4.view.RxViewPager;
 import com.jakewharton.rxbinding.support.v4.widget.RxSwipeRefreshLayout;
 import com.jakewharton.rxbinding.support.v7.widget.RxPopupMenu;
+import com.jakewharton.rxbinding.view.RxView;
+import com.jakewharton.rxbinding.widget.AdapterViewItemClickEvent;
+import com.jakewharton.rxbinding.widget.RxAbsListView;
+import com.jakewharton.rxbinding.widget.RxAdapterView;
+import com.jakewharton.rxbinding.widget.RxCompoundButton;
 
 import java.util.ArrayList;
 import java.util.List;
 
 import rx.Observable;
 import rx.Subscription;
+import rx.functions.Action1;
 import rx.functions.Func1;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -76,6 +83,7 @@ public class TasksFragment extends Fragment implements TasksContract.View {
 
     private TextView mFilteringLabelView;
     private PopupMenu mFilteringMenu;
+    private Subscription mItemClickSubscription;
 
     public TasksFragment() {
         // Requires empty public constructor
@@ -122,6 +130,19 @@ public class TasksFragment extends Fragment implements TasksContract.View {
         // Set up tasks view
         ListView listView = (ListView) root.findViewById(R.id.tasks_list);
         listView.setAdapter(mListAdapter);
+        mItemClickSubscription = RxAdapterView.itemClickEvents(listView)
+                .map(new Func1<AdapterViewItemClickEvent, Task>() {
+                    @Override
+                    public Task call(AdapterViewItemClickEvent itemClickEvent) {
+                        return mListAdapter.getItem(itemClickEvent.position());
+                    }
+                })
+                .subscribe(new Action1<Task>() {
+                    @Override
+                    public void call(Task task) {
+                        mItemListener.onTaskClick(task);
+                    }
+                });
         mFilteringLabelView = (TextView) root.findViewById(R.id.filteringLabel);
         mTasksView = (LinearLayout) root.findViewById(R.id.tasksLL);
 
@@ -195,6 +216,15 @@ public class TasksFragment extends Fragment implements TasksContract.View {
         mPresenter.setFiltering(filterTypeObservable);
 
         return root;
+    }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        if(mItemClickSubscription != null && !mItemClickSubscription.isUnsubscribed()) {
+            mItemClickSubscription.unsubscribe();
+        }
+        mItemClickSubscription = null;
     }
 
     @Override
@@ -448,23 +478,17 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                         .getResources().getDrawable(R.drawable.touch_feedback));
             }
 
-            completeCB.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (!task.isCompleted()) {
-                        mItemListener.onCompleteTaskClick(task);
-                    } else {
-                        mItemListener.onActivateTaskClick(task);
-                    }
-                }
-            });
-
-            rowView.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    mItemListener.onTaskClick(task);
-                }
-            });
+            RxCompoundButton.checkedChanges(completeCB)
+                    .subscribe(new Action1<Boolean>() {
+                        @Override
+                        public void call(Boolean aBoolean) {
+                            if (!task.isCompleted()) {
+                                mItemListener.onCompleteTaskClick(task);
+                            } else {
+                                mItemListener.onActivateTaskClick(task);
+                            }
+                        }
+                    });
 
             return rowView;
         }
