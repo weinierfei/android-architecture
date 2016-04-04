@@ -98,12 +98,6 @@ public class TasksPresenter implements TasksContract.Presenter {
         EspressoIdlingResource.increment(); // App is busy until further notice
 
         return mTasksRepository.getTasks()
-                .doOnSubscribe(new Action0() {
-                    @Override
-                    public void call() {
-                        mTasksView.setLoadingIndicator(true);
-                    }
-                })
                 .flatMap(new Func1<List<Task>, Observable<Task>>() {
                     @Override
                     public Observable<Task> call(List<Task> tasks) {
