@@ -159,21 +159,15 @@ public class TasksFragment extends Fragment implements TasksContract.View {
         );
         // Set the scrolling view in the custom SwipeRefreshLayout.
         swipeRefreshLayout.setScrollUpChild(listView);
-
-        swipeRefreshLayout.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
-            @Override
-            public void onRefresh() {
-                mPresenter.loadTasks(false);
-            }
-        });
-        Observable<TasksFilterType> swipeRefreshObservable = RxSwipeRefreshLayout.refreshes(swipeRefreshLayout)
+        Observable<TasksFilterType> swipeRefreshObservable = RxSwipeRefreshLayout
+                .refreshes(swipeRefreshLayout)
                 .map(new Func1<Void, TasksFilterType>() {
                     @Override
                     public TasksFilterType call(Void aVoid) {
+                        // Just trigger a new event with the last chosen filtering
                         return mPresenter.getFiltering();
                     }
                 });
-
 
         setHasOptionsMenu(true);
 
@@ -194,7 +188,11 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                         }
                     }
                 });
-        mPresenter.setFiltering(Observable.merge(swipeRefreshObservable, tasksFilterTypeObservable).startWith(TasksFilterType.ALL_TASKS));
+        Observable<TasksFilterType> filterTypeObservable = Observable
+                .merge(swipeRefreshObservable, tasksFilterTypeObservable)
+                .startWith(TasksFilterType.ALL_TASKS);
+
+        mPresenter.setFiltering(filterTypeObservable);
 
         return root;
     }
