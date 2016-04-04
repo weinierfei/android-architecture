@@ -103,16 +103,22 @@ public class TasksRepository implements TasksDataSource {
                 .flatMap(new Func1<List<Task>, Observable<Task>>() {
                     @Override
                     public Observable<Task> call(List<Task> tasks) {
-                        return null;
+                        return Observable.from(tasks);
                     }
                 })
                 .doOnNext(new Action1<Task>() {
                     @Override
                     public void call(Task task) {
+                        mCachedTasks.put(task.getId(), task);
                         mTasksLocalDataSource.saveTask(task);
                     }
                 })
                 .toList();
+
+        if(mCacheIsDirty) {
+            return remoteTasksWithLocalUpdate;
+        }
+
         return Observable
                 .concat(cachedTasks, localTasks, remoteTasksWithLocalUpdate)
                 .first();
@@ -201,9 +207,13 @@ public class TasksRepository implements TasksDataSource {
                 .doOnNext(new Action1<Task>() {
                     @Override
                     public void call(Task task) {
+                        mCachedTasks.put(taskId, task);
                         mTasksLocalDataSource.saveTask(task);
                     }
                 });
+        if(mCacheIsDirty) {
+            return remoteTaskWithLocalUpdate;
+        }
         return Observable
                 .concat(cachedTask, localTask, remoteTaskWithLocalUpdate)
                 .first();
