@@ -49,6 +49,7 @@ import com.jakewharton.rxbinding.support.v7.widget.RxPopupMenu;
 import com.jakewharton.rxbinding.view.RxView;
 import com.jakewharton.rxbinding.widget.AdapterViewItemClickEvent;
 import com.jakewharton.rxbinding.widget.RxAbsListView;
+import com.jakewharton.rxbinding.widget.RxAdapter;
 import com.jakewharton.rxbinding.widget.RxAdapterView;
 import com.jakewharton.rxbinding.widget.RxCompoundButton;
 
@@ -57,8 +58,10 @@ import java.util.List;
 
 import rx.Observable;
 import rx.Subscription;
+import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action1;
 import rx.functions.Func1;
+import rx.schedulers.Schedulers;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -84,6 +87,7 @@ public class TasksFragment extends Fragment implements TasksContract.View {
     private TextView mFilteringLabelView;
     private PopupMenu mFilteringMenu;
     private Subscription mItemClickSubscription;
+    private Subscription mLoadTasksSubscription;
 
     public TasksFragment() {
         // Requires empty public constructor
@@ -214,7 +218,15 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                 .startWith(TasksFilterType.ALL_TASKS);
 
         mPresenter.setFiltering(filterTypeObservable);
-
+        mLoadTasksSubscription = mPresenter.loadTasks(false)
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Action1<List<Task>>() {
+                    @Override
+                    public void call(List<Task> tasks) {
+                        showTasks(tasks);
+                    }
+                });
         return root;
     }
 
@@ -225,6 +237,10 @@ public class TasksFragment extends Fragment implements TasksContract.View {
             mItemClickSubscription.unsubscribe();
         }
         mItemClickSubscription = null;
+        if(mLoadTasksSubscription != null && !mLoadTasksSubscription.isUnsubscribed()) {
+            mLoadTasksSubscription.unsubscribe();
+        }
+        mLoadTasksSubscription = null;
     }
 
     @Override
@@ -237,7 +253,7 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                 showFilteringPopUpMenu();
                 break;
             case R.id.menu_refresh:
-                mPresenter.loadTasks(true);
+                // TODO trigger refresh
                 break;
         }
         return true;
