@@ -19,6 +19,8 @@ package com.example.android.architecture.blueprints.todoapp.statistics;
 import com.example.android.architecture.blueprints.todoapp.BasePresenter;
 import com.example.android.architecture.blueprints.todoapp.BaseView;
 
+import rx.Observable;
+
 /**
  * This specifies the contract between the view and the presenter.
  */
@@ -36,6 +38,6 @@ public interface StatisticsContract {
     }
 
     interface Presenter extends BasePresenter {
-
+        // TODO Observable for loading statistics here
     }
 }

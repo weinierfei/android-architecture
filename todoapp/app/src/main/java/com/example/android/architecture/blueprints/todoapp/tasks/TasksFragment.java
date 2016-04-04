@@ -43,9 +43,15 @@ import com.example.android.architecture.blueprints.todoapp.R;
 import com.example.android.architecture.blueprints.todoapp.addedittask.AddEditTaskActivity;
 import com.example.android.architecture.blueprints.todoapp.data.Task;
 import com.example.android.architecture.blueprints.todoapp.taskdetail.TaskDetailActivity;
+import com.jakewharton.rxbinding.support.v4.widget.RxSwipeRefreshLayout;
+import com.jakewharton.rxbinding.support.v7.widget.RxPopupMenu;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import rx.Observable;
+import rx.Subscription;
+import rx.functions.Func1;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -69,6 +75,7 @@ public class TasksFragment extends Fragment implements TasksContract.View {
     private LinearLayout mTasksView;
 
     private TextView mFilteringLabelView;
+    private PopupMenu mFilteringMenu;
 
     public TasksFragment() {
         // Requires empty public constructor
@@ -159,8 +166,35 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                 mPresenter.loadTasks(false);
             }
         });
+        Observable<TasksFilterType> swipeRefreshObservable = RxSwipeRefreshLayout.refreshes(swipeRefreshLayout)
+                .map(new Func1<Void, TasksFilterType>() {
+                    @Override
+                    public TasksFilterType call(Void aVoid) {
+                        return mPresenter.getFiltering();
+                    }
+                });
+
 
         setHasOptionsMenu(true);
+
+        mFilteringMenu = new PopupMenu(getContext(), getActivity().findViewById(R.id.menu_filter));
+        mFilteringMenu.getMenuInflater().inflate(R.menu.filter_tasks, mFilteringMenu.getMenu());
+        Observable<TasksFilterType> tasksFilterTypeObservable = RxPopupMenu
+                .itemClicks(mFilteringMenu)
+                .map(new Func1<MenuItem, TasksFilterType>() {
+                    @Override
+                    public TasksFilterType call(MenuItem menuItem) {
+                        switch (menuItem.getItemId()) {
+                            case R.id.active:
+                                return TasksFilterType.ACTIVE_TASKS;
+                            case R.id.completed:
+                                return TasksFilterType.COMPLETED_TASKS;
+                            default:
+                                return TasksFilterType.ALL_TASKS;
+                        }
+                    }
+                });
+        mPresenter.setFiltering(Observable.merge(swipeRefreshObservable, tasksFilterTypeObservable));
 
         return root;
     }
@@ -189,28 +223,26 @@ public class TasksFragment extends Fragment implements TasksContract.View {
 
     @Override
     public void showFilteringPopUpMenu() {
-        PopupMenu popup = new PopupMenu(getContext(), getActivity().findViewById(R.id.menu_filter));
-        popup.getMenuInflater().inflate(R.menu.filter_tasks, popup.getMenu());
 
-        popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
-            public boolean onMenuItemClick(MenuItem item) {
-                switch (item.getItemId()) {
-                    case R.id.active:
-                        mPresenter.setFiltering(TasksFilterType.ACTIVE_TASKS);
-                        break;
-                    case R.id.completed:
-                        mPresenter.setFiltering(TasksFilterType.COMPLETED_TASKS);
-                        break;
-                    default:
-                        mPresenter.setFiltering(TasksFilterType.ALL_TASKS);
-                        break;
-                }
-                mPresenter.loadTasks(false);
-                return true;
-            }
-        });
+//        popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+//            public boolean onMenuItemClick(MenuItem item) {
+//                switch (item.getItemId()) {
+//                    case R.id.active:
+//                        mPresenter.setFiltering(TasksFilterType.ACTIVE_TASKS);
+//                        break;
+//                    case R.id.completed:
+//                        mPresenter.setFiltering(TasksFilterType.COMPLETED_TASKS);
+//                        break;
+//                    default:
+//                        mPresenter.setFiltering(TasksFilterType.ALL_TASKS);
+//                        break;
+//                }
+//                mPresenter.loadTasks(false);
+//                return true;
+//            }
+//        });
 
-        popup.show();
+        mFilteringMenu.show();
     }
 
     /**

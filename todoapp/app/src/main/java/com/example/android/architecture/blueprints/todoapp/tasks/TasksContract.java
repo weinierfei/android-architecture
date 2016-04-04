@@ -24,6 +24,8 @@ import com.example.android.architecture.blueprints.todoapp.BasePresenter;
 
 import java.util.List;
 
+import rx.Observable;
+
 /**
  * This specifies the contract between the view and the presenter.
  */
@@ -70,7 +72,7 @@ public interface TasksContract {
 
         void result(int requestCode, int resultCode);
 
-        void loadTasks(boolean forceUpdate);
+        Observable<List<Task>> loadTasks(boolean forceUpdate);
 
         void addNewTask();
 
@@ -82,7 +84,7 @@ public interface TasksContract {
 
         void clearCompletedTasks();
 
-        void setFiltering(TasksFilterType requestType);
+        void setFiltering(Observable<TasksFilterType> requestTypeObservable);
 
         TasksFilterType getFiltering();
     }

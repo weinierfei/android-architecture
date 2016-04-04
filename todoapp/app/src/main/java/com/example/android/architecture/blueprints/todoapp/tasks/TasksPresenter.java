@@ -25,15 +25,12 @@ import com.example.android.architecture.blueprints.todoapp.data.source.TasksData
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksRepository;
 import com.example.android.architecture.blueprints.todoapp.util.EspressoIdlingResource;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import rx.Observable;
-import rx.Subscription;
-import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Action0;
 import rx.functions.Action1;
 import rx.functions.Func1;
-import rx.schedulers.Schedulers;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -47,10 +44,10 @@ public class TasksPresenter implements TasksContract.Presenter {
 
     private final TasksContract.View mTasksView;
 
-    private TasksFilterType mCurrentFiltering = TasksFilterType.ALL_TASKS;
+    private Observable<TasksFilterType> mFilter = Observable.just(TasksFilterType.ALL_TASKS);
 
     private boolean mFirstLoad = true;
-    private Subscription mTasksSubscription;
+    private TasksFilterType mCurrentFiltering;
 
     public TasksPresenter(@NonNull TasksRepository tasksRepository, @NonNull TasksContract.View tasksView) {
         mTasksRepository = checkNotNull(tasksRepository, "tasksRepository cannot be null");
@@ -66,7 +63,6 @@ public class TasksPresenter implements TasksContract.Presenter {
 
     @Override
     public void unsubscribe() {
-        clearTasksSubscription();
     }
 
     @Override
@@ -78,20 +74,21 @@ public class TasksPresenter implements TasksContract.Presenter {
     }
 
     @Override
-    public void loadTasks(boolean forceUpdate) {
+    public Observable<List<Task>> loadTasks(boolean forceUpdate) {
         // Simplification for sample: a network reload will be forced on first load.
-        loadTasks(forceUpdate || mFirstLoad, true);
-        mFirstLoad = false;
+        return loadTasks(forceUpdate || mFirstLoad, true).doOnNext(new Action1<List<Task>>() {
+            @Override
+            public void call(List<Task> tasks) {
+                mFirstLoad = false;
+            }
+        });
     }
 
     /**
      * @param forceUpdate   Pass in true to refresh the data in the {@link TasksDataSource}
      * @param showLoadingUI Pass in true to display a loading icon in the UI
      */
-    private void loadTasks(boolean forceUpdate, final boolean showLoadingUI) {
-        if (showLoadingUI) {
-            mTasksView.setLoadingIndicator(true);
-        }
+    private Observable<List<Task>> loadTasks(boolean forceUpdate, final boolean showLoadingUI) {
         if (forceUpdate) {
             mTasksRepository.refreshTasks();
         }
@@ -100,12 +97,28 @@ public class TasksPresenter implements TasksContract.Presenter {
         // that the app is busy until the response is handled.
         EspressoIdlingResource.increment(); // App is busy until further notice
 
-        clearTasksSubscription();
-        mTasksSubscription = mTasksRepository.getTasks()
+        return mTasksRepository.getTasks()
+                .doOnSubscribe(new Action0() {
+                    @Override
+                    public void call() {
+                        mTasksView.setLoadingIndicator(true);
+                    }
+                })
                 .flatMap(new Func1<List<Task>, Observable<Task>>() {
                     @Override
                     public Observable<Task> call(List<Task> tasks) {
                         return Observable.from(tasks);
+                    }
+                })
+                .retryWhen(new Func1<Observable<? extends Throwable>, Observable<TasksFilterType>>() {
+                    @Override
+                    public Observable<TasksFilterType> call(Observable<? extends Throwable> observable) {
+                        return mFilter.doOnNext(new Action1<TasksFilterType>() {
+                            @Override
+                            public void call(TasksFilterType tasksFilterType) {
+                                mCurrentFiltering = tasksFilterType;
+                            }
+                        });
                     }
                 })
                 .filter(new Func1<Task, Boolean>() {
@@ -124,37 +137,7 @@ public class TasksPresenter implements TasksContract.Presenter {
                         }
                     }
                 })
-                .toList()
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Action1<List<Task>>() {
-                    @Override
-                    public void call(List<Task> tasks) {
-                        // This callback may be called twice, once for the cache and once for loading
-                        // the data from the server API, so we check before decrementing, otherwise
-                        // it throws "Counter has been corrupted!" exception.
-                        if (!EspressoIdlingResource.getIdlingResource().isIdleNow()) {
-                            EspressoIdlingResource.decrement(); // Set app as idle.
-                        }
-
-                        // The view may not be able to handle UI updates anymore
-                        if (!mTasksView.isActive()) {
-                            return;
-                        }
-                        if (showLoadingUI) {
-                            mTasksView.setLoadingIndicator(false);
-                        }
-
-                        processTasks(tasks);
-                    }
-                });
-
-    }
-
-    private void clearTasksSubscription() {
-        if(mTasksSubscription != null && !mTasksSubscription.isUnsubscribed()) {
-            mTasksSubscription.unsubscribe();
-        }
+                .toList();
     }
 
     private void processTasks(List<Task> tasks) {
@@ -231,16 +214,9 @@ public class TasksPresenter implements TasksContract.Presenter {
         loadTasks(false, false);
     }
 
-    /**
-     * Sets the current task filtering type.
-     *
-     * @param requestType Can be {@link TasksFilterType#ALL_TASKS},
-     *                    {@link TasksFilterType#COMPLETED_TASKS}, or
-     *                    {@link TasksFilterType#ACTIVE_TASKS}
-     */
     @Override
-    public void setFiltering(TasksFilterType requestType) {
-        mCurrentFiltering = requestType;
+    public void setFiltering(Observable<TasksFilterType> requestTypeObservable) {
+        mFilter = requestTypeObservable;
     }
 
     @Override

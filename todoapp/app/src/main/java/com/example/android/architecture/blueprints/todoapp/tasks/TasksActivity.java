@@ -34,6 +34,8 @@ import com.example.android.architecture.blueprints.todoapp.statistics.Statistics
 import com.example.android.architecture.blueprints.todoapp.util.ActivityUtils;
 import com.example.android.architecture.blueprints.todoapp.util.EspressoIdlingResource;
 
+import rx.Observable;
+
 public class TasksActivity extends AppCompatActivity {
 
     private static final String CURRENT_FILTERING_KEY = "CURRENT_FILTERING_KEY";
@@ -79,7 +81,7 @@ public class TasksActivity extends AppCompatActivity {
         if (savedInstanceState != null) {
             TasksFilterType currentFiltering =
                     (TasksFilterType) savedInstanceState.getSerializable(CURRENT_FILTERING_KEY);
-            mTasksPresenter.setFiltering(currentFiltering);
+            mTasksPresenter.setFiltering(Observable.just(currentFiltering));
         }
     }
 

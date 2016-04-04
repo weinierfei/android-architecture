@@ -44,7 +44,6 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
     private final StatisticsContract.View mStatisticsView;
     private int mCompletedTasks;
     private int mActiveTasks;
-    private Subscription mStatisticsSubscription;
 
     public StatisticsPresenter(@NonNull TasksRepository tasksRepository,
                                @NonNull StatisticsContract.View statisticsView) {
@@ -55,14 +54,10 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
     }
 
     @Override
-    public void subscribe() {
-        loadStatistics();
-    }
+    public void subscribe() {}
 
     @Override
-    public void unsubscribe() {
-        clearStatisticsSubscription();
-    }
+    public void unsubscribe() { }
 
     private void loadStatistics() {
         mStatisticsView.setProgressIndicator(true);
@@ -71,8 +66,7 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
         // that the app is busy until the response is handled.
         EspressoIdlingResource.increment(); // App is busy until further notice
 
-        clearStatisticsSubscription();
-        mStatisticsSubscription = mTasksRepository.getTasks()
+        mTasksRepository.getTasks()
                 .flatMap(new Func1<List<Task>, Observable<Task>>() {
                     @Override
                     public Observable<Task> call(List<Task> tasks) {
@@ -80,7 +74,9 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
                         mActiveTasks = 0;
                         return Observable.from(tasks);
                     }
-                })
+                });
+        // TODO Use count() ?
+/*
                 .subscribeOn(Schedulers.io())
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(new Observer<Task>() {
@@ -109,12 +105,8 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
                         }
                     }
                 });
+*/
 
     }
 
-    private void clearStatisticsSubscription() {
-        if(mStatisticsSubscription != null && !mStatisticsSubscription.isUnsubscribed()) {
-            mStatisticsSubscription.unsubscribe();
-        }
-    }
 }

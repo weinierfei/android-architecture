@@ -22,6 +22,7 @@ import android.support.annotation.Nullable;
 import com.example.android.architecture.blueprints.todoapp.data.Task;
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksDataSource;
 
+import rx.Observable;
 import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action1;
@@ -43,7 +44,6 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
 
     @Nullable
     private String mTaskId;
-    private Subscription mTaskSubscription;
 
     /**
      * Creates a presenter for the add/edit view.
@@ -63,14 +63,10 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
 
     @Override
     public void subscribe() {
-        if (mTaskId != null) {
-            populateTask();
-        }
     }
 
     @Override
     public void unsubscribe() {
-        clearTaskSubscription();
     }
 
     @Override
@@ -94,18 +90,13 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
     }
 
     @Override
-    public void populateTask() {
+    public Observable<Task> populateTask() {
         if (mTaskId == null) {
-            throw new RuntimeException("populateTask() was called but task is new.");
+            Observable.error(new RuntimeException("populateTask() was called but task is new."));
         }
-        clearTaskSubscription();
-        mTaskSubscription = mTasksRepository.getTask(mTaskId)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Action1<Task>() {
-                    @Override
-                    public void call(Task task) {
-                        // The view may not be able to handle UI updates anymore
+
+        /*
+                                // The view may not be able to handle UI updates anymore
                         if (mAddTaskView.isActive()) {
                             if (task != null) {
                                 mAddTaskView.setTitle(task.getTitle());
@@ -114,13 +105,9 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
                                 mAddTaskView.showEmptyTaskError();
                             }
                         }
-                    }
-                });
+
+         */
+        return mTasksRepository.getTask(mTaskId);
     }
 
-    private void clearTaskSubscription() {
-        if (mTaskSubscription != null && !mTaskSubscription.isUnsubscribed()) {
-            mTaskSubscription.unsubscribe();
-        }
-    }
 }

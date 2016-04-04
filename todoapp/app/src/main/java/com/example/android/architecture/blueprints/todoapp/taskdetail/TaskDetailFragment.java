@@ -36,6 +36,12 @@ import android.widget.TextView;
 import com.example.android.architecture.blueprints.todoapp.R;
 import com.example.android.architecture.blueprints.todoapp.addedittask.AddEditTaskActivity;
 import com.example.android.architecture.blueprints.todoapp.addedittask.AddEditTaskFragment;
+import com.example.android.architecture.blueprints.todoapp.data.Task;
+
+import rx.Subscription;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Action1;
+import rx.schedulers.Schedulers;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -55,6 +61,7 @@ public class TaskDetailFragment extends Fragment implements TaskDetailContract.V
     private TextView mDetailDescription;
 
     private CheckBox mDetailCompleteStatus;
+    private Subscription mTaskDetailSubscription;
 
     public static TaskDetailFragment newInstance(String taskId) {
         Bundle arguments = new Bundle();
@@ -68,12 +75,41 @@ public class TaskDetailFragment extends Fragment implements TaskDetailContract.V
     public void onResume() {
         super.onResume();
         mPresenter.subscribe();
+        mTaskDetailSubscription = mPresenter
+                .loadTask()
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Action1<Task>() {
+                    @Override
+                    public void call(Task task) {
+                        setLoadingIndicator(false);
+                        showTask(task);
+                    }
+                });
+    }
+
+    private void showTask(Task task) {
+        String title = task.getTitle();
+        String description = task.getDescription();
+
+        if (title != null && title.isEmpty()) {
+            hideTitle();
+        } else {
+            showTitle(title);
+        }
+
+        if (description != null && description.isEmpty()) {
+            hideDescription();
+        } else {
+            showDescription(description);
+        }
+        showCompletionStatus(task.isCompleted());
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        mPresenter.unsubscribe();
+        mTaskDetailSubscription.unsubscribe();
     }
 
     @Nullable

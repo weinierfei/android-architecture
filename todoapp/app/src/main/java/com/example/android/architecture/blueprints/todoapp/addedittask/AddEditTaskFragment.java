@@ -29,6 +29,9 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import com.example.android.architecture.blueprints.todoapp.R;
+import com.example.android.architecture.blueprints.todoapp.data.Task;
+
+import rx.functions.Action1;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -59,6 +62,17 @@ public class AddEditTaskFragment extends Fragment implements AddEditTaskContract
     public void onResume() {
         super.onResume();
         mPresenter.subscribe();
+        mPresenter.populateTask().subscribe(new Action1<Task>() {
+            @Override
+            public void call(Task task) {
+                if (task != null) {
+                    setTitle(task.getTitle());
+                    setDescription(task.getDescription());
+                } else {
+                    showEmptyTaskError();
+                }
+            }
+        });
     }
 
     @Override

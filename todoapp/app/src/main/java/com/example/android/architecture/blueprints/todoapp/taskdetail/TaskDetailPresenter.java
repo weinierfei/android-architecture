@@ -22,6 +22,7 @@ import android.support.annotation.Nullable;
 import com.example.android.architecture.blueprints.todoapp.data.Task;
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksRepository;
 
+import rx.Observable;
 import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action1;
@@ -55,7 +56,6 @@ public class TaskDetailPresenter implements TaskDetailContract.Presenter {
 
     @Override
     public void subscribe() {
-        openTask();
     }
 
     @Override
@@ -63,21 +63,19 @@ public class TaskDetailPresenter implements TaskDetailContract.Presenter {
         clearTaskSubscription();
     }
 
-    private void openTask() {
+    @Override
+    public Observable<Task> loadTask() {
         if (null == mTaskId || mTaskId.isEmpty()) {
             mTaskDetailView.showMissingTask();
-            return;
+            return Observable.empty();
         }
 
         mTaskDetailView.setLoadingIndicator(true);
         clearTaskSubscription();
-        mTaskSubscription = mTasksRepository.getTask(mTaskId)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Action1<Task>() {
-                    @Override
-                    public void call(Task task) {
-                        // The view may not be able to handle UI updates anymore
+        return mTasksRepository.getTask(mTaskId);
+
+        /*
+                                // The view may not be able to handle UI updates anymore
                         if (!mTaskDetailView.isActive()) {
                             return;
                         }
@@ -87,9 +85,8 @@ public class TaskDetailPresenter implements TaskDetailContract.Presenter {
                         } else {
                             showTask(task);
                         }
-                    }
-                });
-        ;
+
+         */
     }
 
     private void clearTaskSubscription() {

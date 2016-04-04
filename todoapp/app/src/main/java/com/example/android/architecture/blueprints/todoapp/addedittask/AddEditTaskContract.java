@@ -18,6 +18,9 @@ package com.example.android.architecture.blueprints.todoapp.addedittask;
 
 import com.example.android.architecture.blueprints.todoapp.BasePresenter;
 import com.example.android.architecture.blueprints.todoapp.BaseView;
+import com.example.android.architecture.blueprints.todoapp.data.Task;
+
+import rx.Observable;
 
 /**
  * This specifies the contract between the view and the presenter.
@@ -43,6 +46,6 @@ public interface AddEditTaskContract {
 
         void updateTask( String title, String description);
 
-        void populateTask();
+        Observable<Task> populateTask();
     }
 }

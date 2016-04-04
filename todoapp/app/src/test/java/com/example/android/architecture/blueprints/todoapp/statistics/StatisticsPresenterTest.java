@@ -46,13 +46,6 @@ public class StatisticsPresenterTest {
     @Mock
     private StatisticsContract.View mStatisticsView;
 
-    /**
-     * {@link ArgumentCaptor} is a powerful Mockito API to capture argument values and use them to
-     * perform further actions or assertions on them.
-     */
-    @Captor
-    private ArgumentCaptor<TasksDataSource.LoadTasksCallback> mLoadTasksCallbackCaptor;
-
 
     private StatisticsPresenter mStatisticsPresenter;
 
@@ -85,8 +78,7 @@ public class StatisticsPresenterTest {
         verify(mStatisticsView).setProgressIndicator(true);
 
         // Callback is captured and invoked with stubbed tasks
-        verify(mTasksRepository).getTasks(mLoadTasksCallbackCaptor.capture());
-        mLoadTasksCallbackCaptor.getValue().onTasksLoaded(TASKS);
+        verify(mTasksRepository).getTasks();
 
         // Then progress indicator is hidden and correct data is passed on to the view
         verify(mStatisticsView).setProgressIndicator(false);
@@ -104,8 +96,7 @@ public class StatisticsPresenterTest {
         verify(mStatisticsView).setProgressIndicator(true);
 
         // Callback is captured and invoked with stubbed tasks
-        verify(mTasksRepository).getTasks(mLoadTasksCallbackCaptor.capture());
-        mLoadTasksCallbackCaptor.getValue().onTasksLoaded(TASKS);
+        verify(mTasksRepository).getTasks();
 
         // Then progress indicator is hidden and correct data is passed on to the view
         verify(mStatisticsView).setProgressIndicator(false);
@@ -118,8 +109,7 @@ public class StatisticsPresenterTest {
         mStatisticsPresenter.subscribe();
 
         // And tasks data isn't available
-        verify(mTasksRepository).getTasks(mLoadTasksCallbackCaptor.capture());
-        mLoadTasksCallbackCaptor.getValue().onDataNotAvailable();
+        verify(mTasksRepository).getTasks();
 
         // Then an error message is shown
         verify(mStatisticsView).showLoadingStatisticsError();
