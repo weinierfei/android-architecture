@@ -194,7 +194,7 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                         }
                     }
                 });
-        mPresenter.setFiltering(Observable.merge(swipeRefreshObservable, tasksFilterTypeObservable));
+        mPresenter.setFiltering(Observable.merge(swipeRefreshObservable, tasksFilterTypeObservable).startWith(TasksFilterType.ALL_TASKS));
 
         return root;
     }
