@@ -494,6 +494,17 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                         .getResources().getDrawable(R.drawable.touch_feedback));
             }
 
+            completeCB.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+                @Override
+                public void onViewAttachedToWindow(View v) {
+
+                }
+
+                @Override
+                public void onViewDetachedFromWindow(View v) {
+
+                }
+            });
             RxCompoundButton.checkedChanges(completeCB)
                     .subscribe(new Action1<Boolean>() {
                         @Override

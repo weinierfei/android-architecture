@@ -38,6 +38,5 @@ public interface StatisticsContract {
     }
 
     interface Presenter extends BasePresenter {
-        // TODO Observable for loading statistics here
     }
 }
