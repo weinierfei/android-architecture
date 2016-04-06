@@ -17,6 +17,7 @@
 package com.example.android.architecture.blueprints.todoapp.statistics;
 
 import android.support.annotation.NonNull;
+import android.support.v4.util.Pair;
 
 import com.example.android.architecture.blueprints.todoapp.data.Task;
 import com.example.android.architecture.blueprints.todoapp.data.source.TasksRepository;
@@ -25,10 +26,11 @@ import com.example.android.architecture.blueprints.todoapp.util.EspressoIdlingRe
 import java.util.List;
 
 import rx.Observable;
-import rx.Observer;
 import rx.Subscription;
 import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Action1;
 import rx.functions.Func1;
+import rx.functions.Func2;
 import rx.schedulers.Schedulers;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -42,8 +44,7 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
     private final TasksRepository mTasksRepository;
 
     private final StatisticsContract.View mStatisticsView;
-    private int mCompletedTasks;
-    private int mActiveTasks;
+    private Subscription mStatisticsSubscription;
 
     public StatisticsPresenter(@NonNull TasksRepository tasksRepository,
                                @NonNull StatisticsContract.View statisticsView) {
@@ -54,10 +55,14 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
     }
 
     @Override
-    public void subscribe() {}
+    public void subscribe() {
+        loadStatistics();
+    }
 
     @Override
-    public void unsubscribe() { }
+    public void unsubscribe() {
+        clearStatisticsSubscription();
+    }
 
     private void loadStatistics() {
         mStatisticsView.setProgressIndicator(true);
@@ -66,47 +71,84 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
         // that the app is busy until the response is handled.
         EspressoIdlingResource.increment(); // App is busy until further notice
 
-        mTasksRepository.getTasks()
+        Observable<Task> taskObservable = mTasksRepository.getTasks()
                 .flatMap(new Func1<List<Task>, Observable<Task>>() {
                     @Override
                     public Observable<Task> call(List<Task> tasks) {
-                        mCompletedTasks = 0;
-                        mActiveTasks = 0;
                         return Observable.from(tasks);
                     }
                 });
-        // TODO Use count() ?
-/*
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Observer<Task>() {
+
+        Observable<ActiveTasksCount> activeCountingObservable = taskObservable
+                .filter(new Func1<Task, Boolean>() {
                     @Override
-                    public void onCompleted() {
-                        if (!mStatisticsView.isActive()) {
-                            return;
-                        }
-
-                        mStatisticsView.setProgressIndicator(false);
-
-                        mStatisticsView.showStatistics(mActiveTasks, mCompletedTasks);
+                    public Boolean call(Task task) {
+                        return !task.isCompleted();
                     }
-
+                })
+                .count()
+                .map(new Func1<Integer, ActiveTasksCount>() {
                     @Override
-                    public void onError(Throwable e) {
-
-                    }
-
-                    @Override
-                    public void onNext(Task task) {
-                        if (task.isCompleted()) {
-                            mCompletedTasks += 1;
-                        } else {
-                            mActiveTasks += 1;
-                        }
+                    public ActiveTasksCount call(Integer count) {
+                        return new ActiveTasksCount(count);
                     }
                 });
-*/
+        Observable<CompletedTasksCount> completedCountingObservable = taskObservable
+                .filter(new Func1<Task, Boolean>() {
+                    @Override
+                    public Boolean call(Task task) {
+                        return task.isCompleted();
+                    }
+                })
+                .count()
+                .map(new Func1<Integer, CompletedTasksCount>() {
+                    @Override
+                    public CompletedTasksCount call(Integer count) {
+                        return new CompletedTasksCount(count);
+                    }
+                });
 
+        clearStatisticsSubscription();
+        mStatisticsSubscription = Observable
+                .zip(activeCountingObservable, completedCountingObservable,
+                        new Func2<ActiveTasksCount, CompletedTasksCount, Pair<ActiveTasksCount, CompletedTasksCount>>() {
+                            @Override
+                            public Pair<ActiveTasksCount, CompletedTasksCount> call(ActiveTasksCount activeTasksCount,
+                                                                                    CompletedTasksCount completedTasksCount) {
+                                return new Pair<>(activeTasksCount, completedTasksCount);
+                            }
+                        }
+                )
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(new Action1<Pair<ActiveTasksCount, CompletedTasksCount>>() {
+                    @Override
+                    public void call(Pair<ActiveTasksCount, CompletedTasksCount> result) {
+                        mStatisticsView.setProgressIndicator(false);
+                        mStatisticsView.showStatistics(result.second.count, result.first.count);
+                    }
+                });
     }
 
+    private void clearStatisticsSubscription() {
+        if(mStatisticsSubscription != null && !mStatisticsSubscription.isUnsubscribed()) {
+            mStatisticsSubscription.unsubscribe();
+        }
+    }
+
+    private class ActiveTasksCount {
+        public int count;
+
+        public ActiveTasksCount(int count) {
+            this.count = count;
+        }
+    }
+
+    private class CompletedTasksCount {
+        public int count;
+
+        public CompletedTasksCount(int count) {
+            this.count = count;
+        }
+    }
 }

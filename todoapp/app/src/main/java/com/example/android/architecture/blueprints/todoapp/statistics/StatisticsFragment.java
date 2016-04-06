@@ -27,6 +27,11 @@ import android.widget.TextView;
 
 import com.example.android.architecture.blueprints.todoapp.R;
 
+import rx.Observable;
+import rx.android.schedulers.AndroidSchedulers;
+import rx.functions.Action1;
+import rx.schedulers.Schedulers;
+
 import static com.google.common.base.Preconditions.checkNotNull;
 
 /**
