@@ -28,9 +28,10 @@ import com.example.android.architecture.blueprints.todoapp.util.EspressoIdlingRe
 import java.util.List;
 
 import rx.Observable;
-import rx.functions.Action0;
+import rx.Subscription;
 import rx.functions.Action1;
 import rx.functions.Func1;
+import rx.subscriptions.CompositeSubscription;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -48,8 +49,10 @@ public class TasksPresenter implements TasksContract.Presenter {
 
     private boolean mFirstLoad = true;
     private TasksFilterType mCurrentFiltering;
+    private CompositeSubscription mSubscriptions;
 
     public TasksPresenter(@NonNull TasksRepository tasksRepository, @NonNull TasksContract.View tasksView) {
+        mSubscriptions = new CompositeSubscription();
         mTasksRepository = checkNotNull(tasksRepository, "tasksRepository cannot be null");
         mTasksView = checkNotNull(tasksView, "tasksView cannot be null!");
 
@@ -63,6 +66,7 @@ public class TasksPresenter implements TasksContract.Presenter {
 
     @Override
     public void unsubscribe() {
+        mSubscriptions.clear();
     }
 
     @Override
@@ -73,22 +77,17 @@ public class TasksPresenter implements TasksContract.Presenter {
         }
     }
 
-    @Override
-    public Observable<List<Task>> loadTasks(boolean forceUpdate) {
+    private void loadTasks(boolean forceUpdate) {
         // Simplification for sample: a network reload will be forced on first load.
-        return loadTasks(forceUpdate || mFirstLoad, true).doOnNext(new Action1<List<Task>>() {
-            @Override
-            public void call(List<Task> tasks) {
-                mFirstLoad = false;
-            }
-        });
+        loadTasks(forceUpdate || mFirstLoad, true);
+        mFirstLoad = false;
     }
 
     /**
      * @param forceUpdate   Pass in true to refresh the data in the {@link TasksDataSource}
      * @param showLoadingUI Pass in true to display a loading icon in the UI
      */
-    private Observable<List<Task>> loadTasks(boolean forceUpdate, final boolean showLoadingUI) {
+    private void loadTasks(boolean forceUpdate, final boolean showLoadingUI) {
         if (forceUpdate) {
             mTasksRepository.refreshTasks();
         }
@@ -97,7 +96,7 @@ public class TasksPresenter implements TasksContract.Presenter {
         // that the app is busy until the response is handled.
         EspressoIdlingResource.increment(); // App is busy until further notice
 
-        return mTasksRepository.getTasks()
+        Subscription taskLoadSubscription = mTasksRepository.getTasks()
                 .flatMap(new Func1<List<Task>, Observable<Task>>() {
                     @Override
                     public Observable<Task> call(List<Task> tasks) {
@@ -131,7 +130,18 @@ public class TasksPresenter implements TasksContract.Presenter {
                         }
                     }
                 })
-                .toList();
+                .toList()
+                .subscribe(new Action1<List<Task>>() {
+                    @Override
+                    public void call(List<Task> tasks) {
+                        if (tasks.isEmpty()) {
+                            mTasksView.showNoTasks();
+                        } else {
+                            mTasksView.showTasks(tasks);
+                        }
+                    }
+                });
+        mSubscriptions.add(taskLoadSubscription);
     }
 
     private void processTasks(List<Task> tasks) {

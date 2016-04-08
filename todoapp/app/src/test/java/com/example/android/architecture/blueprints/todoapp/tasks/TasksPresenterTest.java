@@ -72,7 +72,7 @@ public class TasksPresenterTest {
         // Given an initialized TasksPresenter with initialized tasks
         // When loading of Tasks is requested
         mTasksPresenter.setFiltering(Observable.just(TasksFilterType.ALL_TASKS));
-        mTasksPresenter.loadTasks(true);
+        mTasksPresenter.subscribe();
 
         // Callback is captured and invoked with stubbed tasks
         verify(mTasksRepository).getTasks();
@@ -91,7 +91,7 @@ public class TasksPresenterTest {
         // Given an initialized TasksPresenter with initialized tasks
         // When loading of Tasks is requested
         mTasksPresenter.setFiltering(Observable.just(TasksFilterType.ACTIVE_TASKS));
-        mTasksPresenter.loadTasks(true);
+        mTasksPresenter.subscribe();
 
         // Callback is captured and invoked with stubbed tasks
         verify(mTasksRepository).getTasks();
@@ -108,7 +108,7 @@ public class TasksPresenterTest {
         // Given an initialized TasksPresenter with initialized tasks
         // When loading of Tasks is requested
         mTasksPresenter.setFiltering(Observable.just(TasksFilterType.COMPLETED_TASKS));
-        mTasksPresenter.loadTasks(true);
+        mTasksPresenter.subscribe();
 
         // Callback is captured and invoked with stubbed tasks
         verify(mTasksRepository).getTasks();
@@ -158,7 +158,7 @@ public class TasksPresenterTest {
     public void activateTask_ShowsTaskMarkedActive() {
         // Given a stubbed completed task
         Task task = new Task("Details Requested", "For this task", true);
-        mTasksPresenter.loadTasks(true);
+        mTasksPresenter.subscribe();
 
         // When task is marked as activated
         mTasksPresenter.activateTask(task);
@@ -172,7 +172,7 @@ public class TasksPresenterTest {
     public void unavailableTasks_ShowsError() {
         // When tasks are loaded
         mTasksPresenter.setFiltering(Observable.just(TasksFilterType.ALL_TASKS));
-        mTasksPresenter.loadTasks(true);
+        mTasksPresenter.subscribe();
 
         // And the tasks aren't available in the repository
         verify(mTasksRepository).getTasks();

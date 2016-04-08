@@ -43,13 +43,10 @@ import com.example.android.architecture.blueprints.todoapp.R;
 import com.example.android.architecture.blueprints.todoapp.addedittask.AddEditTaskActivity;
 import com.example.android.architecture.blueprints.todoapp.data.Task;
 import com.example.android.architecture.blueprints.todoapp.taskdetail.TaskDetailActivity;
-import com.jakewharton.rxbinding.support.v4.view.RxViewPager;
 import com.jakewharton.rxbinding.support.v4.widget.RxSwipeRefreshLayout;
 import com.jakewharton.rxbinding.support.v7.widget.RxPopupMenu;
 import com.jakewharton.rxbinding.view.RxView;
 import com.jakewharton.rxbinding.widget.AdapterViewItemClickEvent;
-import com.jakewharton.rxbinding.widget.RxAbsListView;
-import com.jakewharton.rxbinding.widget.RxAdapter;
 import com.jakewharton.rxbinding.widget.RxAdapterView;
 import com.jakewharton.rxbinding.widget.RxCompoundButton;
 
@@ -58,10 +55,9 @@ import java.util.List;
 
 import rx.Observable;
 import rx.Subscription;
-import rx.android.schedulers.AndroidSchedulers;
 import rx.functions.Action1;
 import rx.functions.Func1;
-import rx.schedulers.Schedulers;
+import rx.subscriptions.CompositeSubscription;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
@@ -88,6 +84,7 @@ public class TasksFragment extends Fragment implements TasksContract.View {
     private PopupMenu mFilteringMenu;
     private Subscription mItemClickSubscription;
     private Subscription mLoadTasksSubscription;
+    private CompositeSubscription mSubscriptions;
 
     public TasksFragment() {
         // Requires empty public constructor
@@ -100,7 +97,8 @@ public class TasksFragment extends Fragment implements TasksContract.View {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mListAdapter = new TasksAdapter(new ArrayList<Task>(0), mItemListener);
+        mSubscriptions = new CompositeSubscription();
+        mListAdapter = new TasksAdapter(new ArrayList<Task>(0));
     }
 
     @Override
@@ -144,7 +142,7 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                 .subscribe(new Action1<Task>() {
                     @Override
                     public void call(Task task) {
-                        mItemListener.onTaskClick(task);
+                        mPresenter.openTaskDetails(task);
                     }
                 });
         mFilteringLabelView = (TextView) root.findViewById(R.id.filteringLabel);
@@ -167,12 +165,14 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                 (FloatingActionButton) getActivity().findViewById(R.id.fab_add_task);
 
         fab.setImageResource(R.drawable.ic_add);
-        fab.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                mPresenter.addNewTask();
-            }
-        });
+        Subscription fabClickSubscription = RxView.clicks(fab)
+                .subscribe(new Action1<Void>() {
+                    @Override
+                    public void call(Void aVoid) {
+                        mPresenter.addNewTask();
+                    }
+                });
+        mSubscriptions.add(fabClickSubscription);
 
         // Set up progress indicator
         final ScrollChildSwipeRefreshLayout swipeRefreshLayout =
@@ -218,26 +218,17 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                 .startWith(TasksFilterType.ALL_TASKS);
 
         mPresenter.setFiltering(filterTypeObservable);
-        mLoadTasksSubscription = mPresenter.loadTasks(false)
-                .subscribeOn(Schedulers.io())
-                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(new Action1<List<Task>>() {
-                    @Override
-                    public void call(List<Task> tasks) {
-                        showTasks(tasks);
-                    }
-                });
         return root;
     }
 
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        if(mItemClickSubscription != null && !mItemClickSubscription.isUnsubscribed()) {
+        if (mItemClickSubscription != null && !mItemClickSubscription.isUnsubscribed()) {
             mItemClickSubscription.unsubscribe();
         }
         mItemClickSubscription = null;
-        if(mLoadTasksSubscription != null && !mLoadTasksSubscription.isUnsubscribed()) {
+        if (mLoadTasksSubscription != null && !mLoadTasksSubscription.isUnsubscribed()) {
             mLoadTasksSubscription.unsubscribe();
         }
         mLoadTasksSubscription = null;
@@ -267,47 +258,8 @@ public class TasksFragment extends Fragment implements TasksContract.View {
 
     @Override
     public void showFilteringPopUpMenu() {
-
-//        popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
-//            public boolean onMenuItemClick(MenuItem item) {
-//                switch (item.getItemId()) {
-//                    case R.id.active:
-//                        mPresenter.setFiltering(TasksFilterType.ACTIVE_TASKS);
-//                        break;
-//                    case R.id.completed:
-//                        mPresenter.setFiltering(TasksFilterType.COMPLETED_TASKS);
-//                        break;
-//                    default:
-//                        mPresenter.setFiltering(TasksFilterType.ALL_TASKS);
-//                        break;
-//                }
-//                mPresenter.loadTasks(false);
-//                return true;
-//            }
-//        });
-
         mFilteringMenu.show();
     }
-
-    /**
-     * Listener for clicks on tasks in the ListView.
-     */
-    TaskItemListener mItemListener = new TaskItemListener() {
-        @Override
-        public void onTaskClick(Task clickedTask) {
-            mPresenter.openTaskDetails(clickedTask);
-        }
-
-        @Override
-        public void onCompleteTaskClick(Task completedTask) {
-            mPresenter.completeTask(completedTask);
-        }
-
-        @Override
-        public void onActivateTaskClick(Task activatedTask) {
-            mPresenter.activateTask(activatedTask);
-        }
-    };
 
     @Override
     public void setLoadingIndicator(final boolean active) {
@@ -435,14 +387,12 @@ public class TasksFragment extends Fragment implements TasksContract.View {
         return isAdded();
     }
 
-    private static class TasksAdapter extends BaseAdapter {
+    private class TasksAdapter extends BaseAdapter {
 
         private List<Task> mTasks;
-        private TaskItemListener mItemListener;
 
-        public TasksAdapter(List<Task> tasks, TaskItemListener itemListener) {
+        public TasksAdapter(List<Task> tasks) {
             setList(tasks);
-            mItemListener = itemListener;
         }
 
         public void replaceData(List<Task> tasks) {
@@ -494,40 +444,29 @@ public class TasksFragment extends Fragment implements TasksContract.View {
                         .getResources().getDrawable(R.drawable.touch_feedback));
             }
 
-            completeCB.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
-                @Override
-                public void onViewAttachedToWindow(View v) {
 
-                }
-
-                @Override
-                public void onViewDetachedFromWindow(View v) {
-
-                }
-            });
-            RxCompoundButton.checkedChanges(completeCB)
+            final Subscription checkedChangesSubscription = RxCompoundButton.checkedChanges(completeCB)
                     .subscribe(new Action1<Boolean>() {
                         @Override
                         public void call(Boolean aBoolean) {
                             if (!task.isCompleted()) {
-                                mItemListener.onCompleteTaskClick(task);
+                                mPresenter.completeTask(task);
                             } else {
-                                mItemListener.onActivateTaskClick(task);
+                                mPresenter.activateTask(task);
                             }
                         }
                     });
+            RxView.detaches(rowView).take(1).subscribe(new Action1<Void>() {
+                @Override
+                public void call(Void aVoid) {
+                    if (!checkedChangesSubscription.isUnsubscribed()) {
+                        checkedChangesSubscription.unsubscribe();
+                    }
+                }
+            });
 
             return rowView;
         }
-    }
-
-    public interface TaskItemListener {
-
-        void onTaskClick(Task clickedTask);
-
-        void onCompleteTaskClick(Task completedTask);
-
-        void onActivateTaskClick(Task activatedTask);
     }
 
 }

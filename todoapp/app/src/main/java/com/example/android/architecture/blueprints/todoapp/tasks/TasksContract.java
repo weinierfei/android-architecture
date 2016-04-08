@@ -72,8 +72,6 @@ public interface TasksContract {
 
         void result(int requestCode, int resultCode);
 
-        Observable<List<Task>> loadTasks(boolean forceUpdate);
-
         void addNewTask();
 
         void openTaskDetails(@NonNull Task requestedTask);

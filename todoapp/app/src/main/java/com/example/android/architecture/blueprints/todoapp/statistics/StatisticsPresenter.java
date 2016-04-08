@@ -131,7 +131,7 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
     }
 
     private void clearStatisticsSubscription() {
-        if(mStatisticsSubscription != null && !mStatisticsSubscription.isUnsubscribed()) {
+        if (mStatisticsSubscription != null && !mStatisticsSubscription.isUnsubscribed()) {
             mStatisticsSubscription.unsubscribe();
         }
     }
